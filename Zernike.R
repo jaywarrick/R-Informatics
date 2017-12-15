@@ -38,9 +38,10 @@ calculateZernikeReAndIm <- function(x)
 }
 
 # This gets called on the entire table to convert Mag and Phase into Re and Im.
-addReAndImParts <- function(x)
+addReAndImProducts <- function(reProducts, imProducts)
 {
-     reNames <- getColNamesContaining(x, 'ZernikeRe')
+     reNames <- getColNamesContaining(reProducts, 'ZernikeRe')
+     dotNames <- gsub('Re','Dot',reNames)
      for(reName in reNames)
      {
           imName <- gsub('Re','Im',reName)
@@ -48,10 +49,10 @@ addReAndImParts <- function(x)
           {
                next
           }
-          x[, (reName):=get(magName) * cosd(get(phaseName))]
-          x[, (imName):=get(magName) * sind(get(phaseName))]
+          reProducts[, (reName):=get(reName) + imProducts[[imName]]]
      }
-     return(x)
+     setnames(reProducts, reNames, dotNames)
+     return(reProducts)
      
      # mags <- x[grepl('ZernikeMag',Measurement,fixed=T)]
      # phases <- x[grepl('ZernikePhase',Measurement,fixed=T)]
@@ -68,20 +69,14 @@ addReAndImParts <- function(x)
 # Do this AFTER the '_Order_' and '_Rep_' strings have been removed from names
 # Do this BEFORE differencing channels
 # Do this BEFORE standardizing any data
-calculateZernikeDotProduct <- function(x)
+calculateZernikeDotProduct <- function(x, imageChannelValsToPermute=unique(x$ImageChannel)[!grepl('_',unique(x$ImageChannel,fixed=T))])
 {
-     y <- calculateZernikeReAndIm(x2)
-     comboProducts <- calculateChannelProducts(y)
-     reProducts <- comboProducts[grepl('ZernikeRe',Measurement,fixed=T)]
-     imProducts <- comboProducts[grepl('ZernikeIm',Measurement,fixed=T)]
-     ret <- copy(reProducts)
-     ret[,ImageChannel:=gsub('_times_','_dot_',ImageChannel)]
-     ret[,Measurement:=gsub('ZernikeRe','ZernikeDot',Measurement)]
-     ret[,Value:=NULL]
-     ret$Value <- reProducts$Value + imProducts$Value
-     x <- rbindlist(list(x, ret), use.names = TRUE)
+     calculateZernikeReAndIm(x)
+     reProducts <- calculateChannelProducts(x, sep='_', comboCol='ImageChannel', valsToPermute=imageChannelValsToPermute, idCols=c('cId','MaskChannel'), mColContains='ZernikeRe')
+     imProducts <- calculateChannelProducts(x, sep='_', comboCol='ImageChannel', valsToPermute=imageChannelValsToPermute, idCols=c('cId','MaskChannel'), mColContains='ZernikeIm')
+     ret <- addReAndImProducts(reProducts=reProducts, imProducts=imProducts)
+     removeColsContaining(x, c('ZernikeRe','ZernikeIm'))
+     x <- merge(x, ret, all=T)
      return(x)
 }
-
-
 
